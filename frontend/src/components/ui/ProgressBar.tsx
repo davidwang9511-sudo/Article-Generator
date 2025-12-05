@@ -1,32 +1,65 @@
-'use client';
-
-import { motion } from 'framer-motion';
+import React, { memo, useMemo } from 'react';
+import { colors, radius, transitions, gradients } from '../../styles/theme';
 
 interface ProgressBarProps {
-  progress: number;
+  current: number;
+  total: number;
   showLabel?: boolean;
 }
 
-export function ProgressBar({ progress, showLabel = true }: ProgressBarProps) {
+/**
+ * Animated progress bar component
+ */
+export const ProgressBar = memo(function ProgressBar({
+  current,
+  total,
+  showLabel = true,
+}: ProgressBarProps) {
+  const percentage = useMemo(() => 
+    total > 0 ? (current / total) * 100 : 0,
+    [current, total]
+  );
+
+  const styles = useMemo(() => ({
+    container: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px',
+      width: '100%',
+    } as React.CSSProperties,
+    label: {
+      fontSize: '14px',
+      fontWeight: 600,
+      color: colors.primary,
+      whiteSpace: 'nowrap',
+    } as React.CSSProperties,
+    track: {
+      flex: 1,
+      height: '4px',
+      background: colors.primaryMuted,
+      borderRadius: radius.sm,
+      overflow: 'hidden',
+    } as React.CSSProperties,
+    fill: {
+      height: '100%',
+      background: gradients.primary,
+      borderRadius: radius.sm,
+      transition: `width ${transitions.slow}`,
+      width: `${percentage}%`,
+    } as React.CSSProperties,
+  }), [percentage]);
+
   return (
-    <div className="w-full">
+    <div style={styles.container}>
       {showLabel && (
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-medium text-gray-400 font-body">Progress</span>
-          <span className="text-sm font-semibold text-coral-400 font-mono">
-            {Math.round(progress)}%
-          </span>
-        </div>
+        <span style={styles.label}>
+          {current}/{total}
+        </span>
       )}
-      <div className="w-full h-2 bg-midnight-800 rounded-full overflow-hidden">
-        <motion.div
-          className="h-full bg-gradient-to-r from-coral-500 via-coral-400 to-mint-500 rounded-full"
-          initial={{ width: 0 }}
-          animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}
-        />
+      <div style={styles.track}>
+        <div style={styles.fill} />
       </div>
     </div>
   );
-}
+});
 

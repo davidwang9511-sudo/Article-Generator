@@ -1,151 +1,200 @@
-'use client';
-
-import { useState, useCallback } from 'react';
-import { api } from '@/lib/api';
-import {
-  InterviewState,
-  InterviewStep,
-  InputMode,
-  TranscriptEntry,
-} from '@/types';
+import { useState, useCallback, useMemo } from 'react';
+import type { 
+  InterviewState, 
+  InterviewStep, 
+  InputMode, 
+  TranscriptEntry, 
+  Article 
+} from '../types';
+import { interviewApi, articleApi } from '../api';
 
 const initialState: InterviewState = {
   step: 'topic',
   topic: '',
-  session: null,
+  questions: [],
   currentQuestionIndex: 0,
   transcript: [],
+  currentAnswer: '',
   article: null,
   inputMode: 'text',
+  isRecording: false,
   isLoading: false,
   error: null,
 };
 
+/**
+ * Custom hook for managing interview state and logic
+ * Separates business logic from UI components
+ */
 export function useInterview() {
   const [state, setState] = useState<InterviewState>(initialState);
 
-  const setStep = useCallback((step: InterviewStep) => {
-    setState((prev) => ({ ...prev, step }));
+  // Derived state
+  const currentQuestion = useMemo(() => 
+    state.questions[state.currentQuestionIndex] || '',
+    [state.questions, state.currentQuestionIndex]
+  );
+
+  const progress = useMemo(() => ({
+    current: state.currentQuestionIndex + 1,
+    total: state.questions.length,
+    percentage: state.questions.length > 0 
+      ? ((state.currentQuestionIndex + 1) / state.questions.length) * 100 
+      : 0,
+  }), [state.currentQuestionIndex, state.questions.length]);
+
+  const isLastQuestion = useMemo(() => 
+    state.currentQuestionIndex >= state.questions.length - 1,
+    [state.currentQuestionIndex, state.questions.length]
+  );
+
+  // Actions
+  const setTopic = useCallback((topic: string) => {
+    setState(prev => ({ ...prev, topic, error: null }));
+  }, []);
+
+  const setAnswer = useCallback((answer: string) => {
+    setState(prev => ({ ...prev, currentAnswer: answer }));
   }, []);
 
   const setInputMode = useCallback((mode: InputMode) => {
-    setState((prev) => ({ ...prev, inputMode: mode }));
+    setState(prev => ({ ...prev, inputMode: mode }));
+  }, []);
+
+  const setStep = useCallback((step: InterviewStep) => {
+    setState(prev => ({ ...prev, step }));
   }, []);
 
   const setError = useCallback((error: string | null) => {
-    setState((prev) => ({ ...prev, error }));
+    setState(prev => ({ ...prev, error }));
   }, []);
 
-  const setLoading = useCallback((isLoading: boolean) => {
-    setState((prev) => ({ ...prev, isLoading }));
+  const toggleRecording = useCallback(() => {
+    setState(prev => {
+      if (prev.isRecording) {
+        // Simulate transcription when stopping
+        return {
+          ...prev,
+          isRecording: false,
+          currentAnswer: prev.currentAnswer + 
+            (prev.currentAnswer ? ' ' : '') + 
+            'This is a simulated voice transcription.',
+        };
+      }
+      return { ...prev, isRecording: true };
+    });
   }, []);
 
-  const generateQuestions = useCallback(async (topic: string) => {
-    setState((prev) => ({ ...prev, isLoading: true, error: null, topic }));
+  /**
+   * Start interview by generating questions
+   */
+  const startInterview = useCallback(async () => {
+    if (!state.topic.trim()) return;
 
-    try {
-      const session = await api.generateQuestions(topic);
-      setState((prev) => ({
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    const response = await interviewApi.generateQuestions(state.topic.trim());
+
+    if (response.success && response.data) {
+      const questions = response.data.questions.map(q => q.question);
+      setState(prev => ({
         ...prev,
-        session,
-        step: 'questions',
+        questions,
+        step: 'interview',
         isLoading: false,
       }));
-    } catch (error) {
-      setState((prev) => ({
+    } else {
+      setState(prev => ({
         ...prev,
-        error: error instanceof Error ? error.message : 'Failed to generate questions',
+        error: response.error || 'Failed to generate questions',
         isLoading: false,
       }));
     }
-  }, []);
+  }, [state.topic]);
 
-  const submitAnswer = useCallback((answer: string) => {
-    if (!state.session) return;
+  /**
+   * Submit current answer and move to next question or generate article
+   */
+  const submitAnswer = useCallback(async () => {
+    if (!state.currentAnswer.trim()) return;
 
-    const currentQuestion = state.session.questions[state.currentQuestionIndex];
-    
-    const entry: TranscriptEntry = {
-      questionId: currentQuestion.id,
-      question: currentQuestion.question,
-      answer,
-      mode: state.inputMode,
-      timestamp: new Date(),
+    const newEntry: TranscriptEntry = {
+      question: currentQuestion,
+      answer: state.currentAnswer.trim(),
+      timestamp: Date.now(),
     };
 
-    const newTranscript = [...state.transcript, entry];
-    const nextIndex = state.currentQuestionIndex + 1;
-    const isComplete = nextIndex >= state.session.questions.length;
+    const updatedTranscript = [...state.transcript, newEntry];
 
-    setState((prev) => ({
-      ...prev,
-      transcript: newTranscript,
-      currentQuestionIndex: isComplete ? prev.currentQuestionIndex : nextIndex,
-    }));
-
-    return isComplete;
-  }, [state.session, state.currentQuestionIndex, state.inputMode, state.transcript]);
-
-  const generateArticle = useCallback(async () => {
-    if (!state.session || state.transcript.length === 0) return;
-
-    setState((prev) => ({ ...prev, isLoading: true, error: null }));
-
-    try {
-      const transcriptForApi = state.transcript.map((entry) => ({
-        question: entry.question,
-        answer: entry.answer,
+    if (isLastQuestion) {
+      // Generate article
+      setState(prev => ({
+        ...prev,
+        transcript: updatedTranscript,
+        currentAnswer: '',
+        step: 'generating',
+        isLoading: true,
       }));
 
-      const article = await api.generateArticle(state.topic, transcriptForApi);
-      
-      setState((prev) => ({
+      const response = await articleApi.generate(state.topic, updatedTranscript);
+
+      if (response.success && response.data) {
+        const article: Article = {
+          title: response.data.title,
+          content: response.data.content,
+          wordCount: response.data.content.split(/\s+/).length,
+          generatedAt: new Date(),
+        };
+
+        setState(prev => ({
+          ...prev,
+          article,
+          step: 'article',
+          isLoading: false,
+        }));
+      } else {
+        setState(prev => ({
+          ...prev,
+          error: response.error || 'Failed to generate article',
+          step: 'interview',
+          isLoading: false,
+        }));
+      }
+    } else {
+      // Move to next question
+      setState(prev => ({
         ...prev,
-        article,
-        step: 'article',
-        isLoading: false,
-      }));
-    } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        error: error instanceof Error ? error.message : 'Failed to generate article',
-        isLoading: false,
+        transcript: updatedTranscript,
+        currentAnswer: '',
+        currentQuestionIndex: prev.currentQuestionIndex + 1,
       }));
     }
-  }, [state.session, state.topic, state.transcript]);
+  }, [state.currentAnswer, state.topic, state.transcript, currentQuestion, isLastQuestion]);
 
+  /**
+   * Reset interview to initial state
+   */
   const reset = useCallback(() => {
     setState(initialState);
   }, []);
 
-  const getCurrentQuestion = useCallback(() => {
-    if (!state.session) return null;
-    return state.session.questions[state.currentQuestionIndex];
-  }, [state.session, state.currentQuestionIndex]);
-
-  const getProgress = useCallback(() => {
-    if (!state.session) return 0;
-    return ((state.currentQuestionIndex) / state.session.questions.length) * 100;
-  }, [state.session, state.currentQuestionIndex]);
-
-  const isInterviewComplete = useCallback(() => {
-    if (!state.session) return false;
-    return state.transcript.length >= state.session.questions.length;
-  }, [state.session, state.transcript]);
-
   return {
-    state,
-    setStep,
+    // State
+    ...state,
+    currentQuestion,
+    progress,
+    isLastQuestion,
+
+    // Actions
+    setTopic,
+    setAnswer,
     setInputMode,
+    setStep,
     setError,
-    setLoading,
-    generateQuestions,
+    toggleRecording,
+    startInterview,
     submitAnswer,
-    generateArticle,
     reset,
-    getCurrentQuestion,
-    getProgress,
-    isInterviewComplete,
   };
 }
 

@@ -1,42 +1,68 @@
-'use client';
+import React, { memo, useState, useCallback, useMemo } from 'react';
+import { colors, radius, transitions, typography } from '../../styles/theme';
 
-import { InputHTMLAttributes, forwardRef } from 'react';
-
-interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
-  error?: string;
+interface InputProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  autoFocus?: boolean;
+  disabled?: boolean;
+  type?: 'text' | 'email' | 'password';
 }
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, className = '', ...props }, ref) => {
-    return (
-      <div className="w-full">
-        {label && (
-          <label className="block text-sm font-medium text-gray-300 mb-2 font-body">
-            {label}
-          </label>
-        )}
-        <input
-          ref={ref}
-          className={`
-            w-full px-4 py-3 rounded-xl 
-            bg-midnight-900/50 border border-midnight-700
-            text-white placeholder-gray-500
-            font-body text-base
-            transition-all duration-200
-            focus:border-coral-500 focus:ring-2 focus:ring-coral-500/20
-            ${error ? 'border-red-500' : ''}
-            ${className}
-          `}
-          {...props}
-        />
-        {error && (
-          <p className="mt-2 text-sm text-red-400 font-body">{error}</p>
-        )}
-      </div>
-    );
-  }
-);
+/**
+ * Styled input component with focus states
+ * Memoized for performance
+ */
+export const Input = memo(function Input({
+  value,
+  onChange,
+  placeholder,
+  onKeyDown,
+  autoFocus = false,
+  disabled = false,
+  type = 'text',
+}: InputProps) {
+  const [isFocused, setIsFocused] = useState(false);
 
-Input.displayName = 'Input';
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      onChange(e.target.value);
+    },
+    [onChange]
+  );
+
+  const handleFocus = useCallback(() => setIsFocused(true), []);
+  const handleBlur = useCallback(() => setIsFocused(false), []);
+
+  const styles = useMemo((): React.CSSProperties => ({
+    width: '100%',
+    padding: '16px 20px',
+    borderRadius: radius.lg,
+    border: `1px solid ${isFocused ? colors.primary : colors.border}`,
+    background: 'rgba(9, 9, 11, 0.8)',
+    color: colors.text,
+    fontSize: typography.sizes.base,
+    fontFamily: typography.fontFamily,
+    outline: 'none',
+    transition: transitions.normal,
+    boxShadow: isFocused ? `0 0 0 3px ${colors.primaryMuted}` : 'none',
+  }), [isFocused]);
+
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={handleChange}
+      onKeyDown={onKeyDown}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      placeholder={placeholder}
+      autoFocus={autoFocus}
+      disabled={disabled}
+      style={styles}
+    />
+  );
+});
 

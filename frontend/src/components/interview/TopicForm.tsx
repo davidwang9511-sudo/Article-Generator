@@ -1,102 +1,163 @@
-'use client';
-
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Sparkles, ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
+import React, { memo, useCallback } from 'react';
+import { Card, Input, Button } from '../ui';
+import { colors, typography, gradients } from '../../styles/theme';
 
 interface TopicFormProps {
-  onSubmit: (topic: string) => void;
+  topic: string;
+  onTopicChange: (topic: string) => void;
+  onSubmit: () => void;
   isLoading: boolean;
+  error: string | null;
 }
 
-export function TopicForm({ onSubmit, isLoading }: TopicFormProps) {
-  const [topic, setTopic] = useState('');
+const SUGGESTIONS = [
+  'Artificial Intelligence',
+  'Remote Work Culture',
+  'Climate Technology',
+  'Startup Funding',
+  'Web3 & Blockchain',
+];
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (topic.trim()) {
-      onSubmit(topic.trim());
-    }
-  };
+/**
+ * Topic selection form with suggestions
+ */
+export const TopicForm = memo(function TopicForm({
+  topic,
+  onTopicChange,
+  onSubmit,
+  isLoading,
+  error,
+}: TopicFormProps) {
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && topic.trim()) {
+        onSubmit();
+      }
+    },
+    [topic, onSubmit]
+  );
 
-  const suggestions = [
-    'Artificial Intelligence',
-    'Remote Work Culture',
-    'Sustainable Technology',
-    'Digital Marketing',
-    'Startup Growth',
-  ];
+  const handleSuggestionClick = useCallback(
+    (suggestion: string) => {
+      onTopicChange(suggestion);
+    },
+    [onTopicChange]
+  );
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
-      className="w-full max-w-2xl mx-auto"
-    >
-      <div className="text-center mb-10">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 200, delay: 0.2 }}
-          className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-coral-500 to-coral-600 mb-6 shadow-lg shadow-coral-500/30"
-        >
-          <Sparkles className="w-8 h-8 text-white" />
-        </motion.div>
-        
-        <h2 className="text-3xl md:text-4xl font-display font-bold text-white mb-4">
-          What would you like to discuss?
-        </h2>
-        <p className="text-gray-400 font-body text-lg">
-          Enter a topic and we&apos;ll generate personalized interview questions
-        </p>
-      </div>
+    <div style={styles.heroSection}>
+      <div style={styles.heroIcon}>✨</div>
+      
+      <h1 style={styles.heroTitle}>
+        Transform <span style={styles.gradientText}>Interviews</span>
+        <br />into Articles
+      </h1>
+      
+      <p style={styles.heroDesc}>
+        Enter a topic, answer dynamic questions via voice or text,
+        and let AI generate a polished article from your responses.
+      </p>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="glass rounded-2xl p-6">
-          <Input
-            type="text"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="e.g., Web Development, Leadership, Climate Change..."
-            className="text-lg py-4"
-            disabled={isLoading}
-          />
-          
-          <div className="mt-4">
-            <p className="text-sm text-gray-500 mb-3 font-body">Quick suggestions:</p>
-            <div className="flex flex-wrap gap-2">
-              {suggestions.map((suggestion) => (
-                <button
-                  key={suggestion}
-                  type="button"
-                  onClick={() => setTopic(suggestion)}
-                  className="px-3 py-1.5 rounded-lg bg-midnight-800 text-gray-300 text-sm font-body
-                           hover:bg-midnight-700 hover:text-white transition-colors duration-200
-                           border border-midnight-700 hover:border-midnight-600"
-                  disabled={isLoading}
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
-          </div>
+      <Card maxWidth="540px" centered>
+        <Input
+          value={topic}
+          onChange={onTopicChange}
+          onKeyDown={handleKeyDown}
+          placeholder="Enter your interview topic..."
+          autoFocus
+        />
+
+        <div style={styles.suggestions}>
+          {SUGGESTIONS.map((suggestion) => (
+            <button
+              key={suggestion}
+              onClick={() => handleSuggestionClick(suggestion)}
+              style={{
+                ...styles.suggestionBtn,
+                ...(topic === suggestion ? styles.suggestionBtnActive : {}),
+              }}
+            >
+              {suggestion}
+            </button>
+          ))}
         </div>
 
         <Button
-          type="submit"
-          size="lg"
+          onClick={onSubmit}
           disabled={!topic.trim() || isLoading}
-          loading={isLoading}
-          className="w-full"
+          fullWidth
+          size="lg"
         >
-          Generate Questions
-          <ArrowRight className="w-5 h-5" />
+          {isLoading ? '⏳ Generating Questions...' : '🚀 Start Interview'}
         </Button>
-      </form>
-    </motion.div>
+
+        {error && <div style={styles.error}>{error}</div>}
+      </Card>
+    </div>
   );
-}
+});
+
+const styles: Record<string, React.CSSProperties> = {
+  heroSection: {
+    textAlign: 'center',
+    marginBottom: '48px',
+    animation: 'fadeIn 0.6s ease-out',
+  },
+  heroIcon: {
+    fontSize: '56px',
+    marginBottom: '24px',
+    display: 'inline-block',
+  },
+  heroTitle: {
+    fontSize: typography.sizes['5xl'],
+    fontWeight: typography.weights.bold,
+    lineHeight: 1.1,
+    marginBottom: '20px',
+    letterSpacing: '-0.03em',
+    color: colors.text,
+  },
+  gradientText: {
+    background: gradients.hero,
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+  },
+  heroDesc: {
+    fontSize: typography.sizes.lg,
+    color: colors.textMuted,
+    maxWidth: '500px',
+    margin: '0 auto 40px',
+    lineHeight: 1.7,
+  },
+  suggestions: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '10px',
+    marginTop: '16px',
+    marginBottom: '20px',
+  },
+  suggestionBtn: {
+    padding: '10px 16px',
+    borderRadius: '10px',
+    border: `1px solid ${colors.border}`,
+    background: colors.surface,
+    color: colors.textMuted,
+    fontSize: typography.sizes.sm,
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    fontFamily: typography.fontFamily,
+  },
+  suggestionBtnActive: {
+    borderColor: colors.primary,
+    color: colors.primaryLight,
+  },
+  error: {
+    marginTop: '16px',
+    padding: '14px 18px',
+    borderRadius: '12px',
+    background: colors.errorMuted,
+    border: `1px solid rgba(239, 68, 68, 0.2)`,
+    color: colors.errorLight,
+    fontSize: typography.sizes.sm,
+  },
+};
 

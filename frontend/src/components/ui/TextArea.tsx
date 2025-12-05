@@ -1,43 +1,73 @@
-'use client';
+import React, { memo, useState, useCallback, useMemo, forwardRef } from 'react';
+import { colors, radius, transitions, typography } from '../../styles/theme';
 
-import { TextareaHTMLAttributes, forwardRef } from 'react';
-
-interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
-  label?: string;
-  error?: string;
+interface TextAreaProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  rows?: number;
+  disabled?: boolean;
+  maxLength?: number;
 }
 
-export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
-  ({ label, error, className = '', ...props }, ref) => {
+/**
+ * Styled textarea component with focus states
+ * ForwardRef for external ref access
+ */
+export const TextArea = memo(forwardRef<HTMLTextAreaElement, TextAreaProps>(
+  function TextArea(
+    {
+      value,
+      onChange,
+      placeholder,
+      rows = 4,
+      disabled = false,
+      maxLength,
+    },
+    ref
+  ) {
+    const [isFocused, setIsFocused] = useState(false);
+
+    const handleChange = useCallback(
+      (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        onChange(e.target.value);
+      },
+      [onChange]
+    );
+
+    const handleFocus = useCallback(() => setIsFocused(true), []);
+    const handleBlur = useCallback(() => setIsFocused(false), []);
+
+    const styles = useMemo((): React.CSSProperties => ({
+      width: '100%',
+      padding: '16px',
+      borderRadius: radius.lg,
+      border: `1px solid ${isFocused ? colors.primary : colors.border}`,
+      background: 'rgba(9, 9, 11, 0.8)',
+      color: colors.text,
+      fontSize: typography.sizes.md,
+      fontFamily: typography.fontFamily,
+      lineHeight: 1.6,
+      resize: 'none',
+      outline: 'none',
+      transition: transitions.normal,
+      boxShadow: isFocused ? `0 0 0 3px ${colors.primaryMuted}` : 'none',
+    }), [isFocused]);
+
     return (
-      <div className="w-full">
-        {label && (
-          <label className="block text-sm font-medium text-gray-300 mb-2 font-body">
-            {label}
-          </label>
-        )}
-        <textarea
-          ref={ref}
-          className={`
-            w-full px-4 py-3 rounded-xl 
-            bg-midnight-900/50 border border-midnight-700
-            text-white placeholder-gray-500
-            font-body text-base
-            transition-all duration-200
-            focus:border-coral-500 focus:ring-2 focus:ring-coral-500/20
-            resize-none
-            ${error ? 'border-red-500' : ''}
-            ${className}
-          `}
-          {...props}
-        />
-        {error && (
-          <p className="mt-2 text-sm text-red-400 font-body">{error}</p>
-        )}
-      </div>
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={handleChange}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        placeholder={placeholder}
+        rows={rows}
+        disabled={disabled}
+        maxLength={maxLength}
+        style={styles}
+      />
     );
   }
-);
-
-TextArea.displayName = 'TextArea';
+));
 
